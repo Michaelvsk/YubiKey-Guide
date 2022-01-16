@@ -9,14 +9,8 @@ Keys stored on YubiKey are [non-exportable](https://support.yubico.com/support/s
 If you have a comment or suggestion, please open an [Issue](https://github.com/drduh/YubiKey-Guide/issues) on GitHub.
 
 - [Purchase](#purchase)
-- [Prepare environment](#prepare-environment)
 - [Required software](#required-software)
   * [Debian and Ubuntu](#debian-and-ubuntu)
-  * [Arch](#arch)
-  * [RHEL7](#rhel7)
-  * [NixOS](#nixos)
-  * [OpenBSD](#openbsd)
-  * [macOS](#macos)
   * [Windows](#windows)
 - [Entropy](#entropy)
 - [Creating keys](#creating-keys)
@@ -97,229 +91,34 @@ This website verifies YubiKey device attestation certificates signed by a set of
 
 You will also need several small storage devices (microSD cards work well) for storing encrypted backups of your keys.
 
-# Prepare environment
-
-To create cryptographic keys, a secure environment that can be reasonably assured to be free of adversarial control is recommended. Here is a general ranking of environments most to least likely to be compromised:
-
-1. Daily-use operating system
-1. Virtual machine on daily-use host OS (using [virt-manager](https://virt-manager.org/), VirtualBox, or VMWare)
-1. Separate hardened [Debian](https://www.debian.org/) or [OpenBSD](https://www.openbsd.org/) installation which can be dual booted
-1. Live image, such as [Debian Live](https://www.debian.org/CD/live/) or [Tails](https://tails.boum.org/index.en.html)
-1. Secure hardware/firmware ([Coreboot](https://www.coreboot.org/), [Intel ME removed](https://github.com/corna/me_cleaner))
-
-1. Dedicated air-gapped system with no networking capabilities
-
-This guide recommends using a bootable "live" Debian Linux image to provide such an environment, however, depending on your threat model, you may want to take fewer or more steps to secure it.
-
-To use Debian Live, download the latest image:
-
-```console
-$ curl -LfO https://cdimage.debian.org/debian-cd/current-live/amd64/iso-hybrid/SHA512SUMS
-
-$ curl -LfO https://cdimage.debian.org/debian-cd/current-live/amd64/iso-hybrid/SHA512SUMS.sign
-
-$ curl -LfO https://cdimage.debian.org/debian-cd/current-live/amd64/iso-hybrid/$(awk '/xfce.iso/ {print $2}' SHA512SUMS)
-```
-
-Verify the signature of the hashes file with GPG:
-
-```console
-$ gpg --verify SHA512SUMS.sign SHA512SUMS
-gpg: Signature made Sat 09 May 2020 05:17:57 PM PDT
-gpg:                using RSA key DF9B9C49EAA9298432589D76DA87E80D6294BE9B
-gpg: Can't check signature: No public key
-
-$ gpg --keyserver hkps://keyring.debian.org --recv DF9B9C49EAA9298432589D76DA87E80D6294BE9B
-gpg: key 0xDA87E80D6294BE9B: public key "Debian CD signing key <debian-cd@lists.debian.org>" imported
-gpg: Total number processed: 1
-gpg:               imported: 1
-
-$ gpg --verify SHA512SUMS.sign SHA512SUMS
-gpg: Signature made Sat 09 May 2020 05:17:57 PM PDT
-gpg:                using RSA key DF9B9C49EAA9298432589D76DA87E80D6294BE9B
-gpg: Good signature from "Debian CD signing key <debian-cd@lists.debian.org>" [unknown]
-gpg: WARNING: This key is not certified with a trusted signature!
-gpg:          There is no indication that the signature belongs to the owner.
-Primary key fingerprint: DF9B 9C49 EAA9 2984 3258  9D76 DA87 E80D 6294 BE9B
-```
-
-If the public key cannot be received, try changing the DNS resolver and/or use a different keyserver:
-
-```console
-$ gpg --keyserver hkps://keyserver.ubuntu.com:443 --recv DF9B9C49EAA9298432589D76DA87E80D6294BE9B
-```
-
-Ensure the SHA512 hash of the live image matches the one in the signed file.
-
-```console
-$ grep $(sha512sum debian-live-*-amd64-xfce.iso) SHA512SUMS
-SHA512SUMS:799ec1fdb098caa7b60b71ed1fdb1f6390a1c6717b4314265e7042fa271c84f67fff0d0380297f60c4bcd0c1001e08623ab3d2a2ad64079d83d1795c40eb7a0a  debian-live-10.5.0-amd64-xfce.iso
-```
-
-See [Verifying authenticity of Debian CDs](https://www.debian.org/CD/verify) for more information.
-
-Mount a storage device and copy the image to it:
-
-**Linux**
-
-```console
-$ sudo dmesg | tail
-usb-storage 3-2:1.0: USB Mass Storage device detected
-scsi host2: usb-storage 3-2:1.0
-scsi 2:0:0:0: Direct-Access     TS-RDF5  SD  Transcend    TS3A PQ: 0 ANSI: 6
-sd 2:0:0:0: Attached scsi generic sg1 type 0
-sd 2:0:0:0: [sdb] 31116288 512-byte logical blocks: (15.9 GB/14.8 GiB)
-sd 2:0:0:0: [sdb] Write Protect is off
-sd 2:0:0:0: [sdb] Mode Sense: 23 00 00 00
-sd 2:0:0:0: [sdb] Write cache: disabled, read cache: enabled, doesn't support DPO or FUA
-sdb: sdb1 sdb2
-sd 2:0:0:0: [sdb] Attached SCSI removable disk
-
-$ sudo dd if=debian-live-10.4.0-amd64-xfce.iso of=/dev/sdb bs=4M; sync
-465+1 records in
-465+1 records out
-1951432704 bytes (2.0 GB, 1.8 GiB) copied, 42.8543 s, 45.5 MB/s
-```
-
-**OpenBSD**
-
-```console
-$ dmesg | tail -n2
-sd2 at scsibus4 targ 1 lun 0: <TS-RDF5, SD Transcend, TS3A> SCSI4 0/direct removable serial.0000000000000
-sd2: 15193MB, 512 bytes/sector, 31116288 sectors
-
-$ doas dd if=debian-live-10.4.0-amd64-xfce.iso of=/dev/rsd2c bs=4m
-465+1 records in
-465+1 records out
-1951432704 bytes transferred in 139.125 secs (14026448 bytes/sec)
-```
-
-Shut down the computer and disconnect internal hard drives and all unnecessary peripheral devices. If being run within a VM, this part can be skipped as no such devices should be attached to the VM since the image will still be run as a "live image".
-
 # Required software
-
-Boot the live image and configure networking.
-
-**Note** If the screen locks, unlock with `user`/`live`.
-
-Open the terminal and install required software packages.
 
 ## Debian and Ubuntu
 
-**Note** Live Ubuntu images [may require modification](https://github.com/drduh/YubiKey-Guide/issues/116) to `/etc/apt/sources.list`
-
 ```console
-$ sudo apt update
-
-$ sudo apt -y upgrade
-
-$ sudo apt -y install wget gnupg2 gnupg-agent dirmngr cryptsetup scdaemon pcscd secure-delete hopenpgp-tools yubikey-personalization
+sudo apt update && sudo apt -y upgrade && sudo apt -y install wget gnupg2 gnupg-agent dirmngr cryptsetup scdaemon pcscd secure-delete hopenpgp-tools yubikey-personalization
 ```
 
 You may additionally need (particularly for Ubuntu 18.04 and 20.04):
 
 ```console
-$ sudo apt -y install libssl-dev swig libpcsclite-dev
+sudo apt -y install libssl-dev swig libpcsclite-dev
 ```
 
 To download a copy of this guide:
 
 ```console
-$ wget https://raw.githubusercontent.com/drduh/YubiKey-Guide/master/README.md
+wget https://raw.githubusercontent.com/drduh/YubiKey-Guide/master/README.md
 ```
 
 To install and use the `ykman` utility:
 
 ```console
-$ sudo apt -y install python3-pip python3-pyscard
-
-$ pip3 install PyOpenSSL
-
-$ pip3 install yubikey-manager
-
-
-$ sudo service pcscd start
-
-$ ~/.local/bin/ykman openpgp info
+sudo apt -y install python3-pip python3-pyscard && pip3 install PyOpenSSL && pip3 install yubikey-manager && sudo service pcscd start
 ```
-
-## Arch
-
 ```console
-$ sudo pacman -Syu gnupg pcsclite ccid hopenpgp-tools yubikey-personalization
+~/.local/bin/ykman openpgp info
 ```
-
-## RHEL7
-
-```console
-$ sudo yum install -y gnupg2 pinentry-curses pcsc-lite pcsc-lite-libs gnupg2-smime
-```
-
-## NixOS
-
-Generate a NixOS LiveCD image with the given config:
-
-```nix
-# yubikey-installer.nix
-{ nixpkgs ? <nixpkgs>, system ? "x86_64-linux" } :
-
-let
-  config = { pkgs, ... }:
-  with pkgs; {
-    imports = [ <nixpkgs/nixos/modules/installer/cd-dvd/installation-cd-graphical-plasma5.nix> ];
-
-    boot.kernelPackages = linuxPackages_latest;
-
-    services.pcscd.enable = true;
-    services.udev.packages = [ yubikey-personalization ];
-
-    environment.systemPackages = [ gnupg pinentry-curses pinentry-qt paperkey wget ];
-
-    programs = {
-      ssh.startAgent = false;
-      gnupg.agent = {
-        enable = true;
-        enableSSHSupport = true;
-      };
-    };
-  };
-
-  evalNixos = configuration: import <nixpkgs/nixos> {
-    inherit system configuration;
-  };
-
-in {
-  iso = (evalNixos config).config.system.build.isoImage;
-}
-```
-
-Build the installer and copy it to a USB drive.
-
-```console
-$ nix build -f yubikey-installer.nix --out-link installer
-
-$ sudo cp -v installer/iso/*.iso /dev/sdb; sync
-'installer/iso/nixos-20.03.git.c438ce1-x86_64-linux.iso' -> '/dev/sdb'
-```
-
-On NixOS, ensure that you have `pinentry-program /run/current-system/sw/bin/pinentry-curses` in your `$GNUPGHOME/gpg-agent.conf` before running any `gpg` commands.
-
-
-## OpenBSD
-
-```console
-$ doas pkg_add gnupg pcsc-tools
-```
-
-## macOS
-
-Download and install [Homebrew](https://brew.sh/) and the following packages:
-
-```console
-$ brew install gnupg yubikey-personalization hopenpgp-tools ykman pinentry-mac
-```
-
-**Note** An additional Python package dependency may need to be installed to use [`ykman`](https://support.yubico.com/support/solutions/articles/15000012643-yubikey-manager-cli-ykman-user-guide) - `pip install yubikey-manager`
 
 ## Windows
 
@@ -346,7 +145,7 @@ From YubiKey firmware version 5.2.3 onwards - which introduces "Enhancements to 
 
 To feed the system's PRNG with entropy generated by the YubiKey itself, issue:
 ```console
-$ echo "SCD RANDOM 512" | gpg-connect-agent | sudo tee /dev/random | hexdump -C
+echo "SCD RANDOM 512" | gpg-connect-agent | sudo tee /dev/random | hexdump -C
 ```
 This will seed the Linux kernel's PRNG with additional 512 bytes retrieved from the YubiKey.
 
@@ -355,7 +154,7 @@ This will seed the Linux kernel's PRNG with additional 512 bytes retrieved from 
 Install [rng-tools](https://wiki.archlinux.org/index.php/Rng-tools) software:
 
 ```console
-$ sudo apt -y install at rng-tools python3-gnupg openssl
+sudo apt -y install at rng-tools python3-gnupg openssl
 ```
 
 If you have a hardware device other than the CPU based one, install the accompany software and point rng-tools to its `/dev/` device.
@@ -377,9 +176,8 @@ $ echo "HRNGDEVICE=/dev/ttyACM0" | sudo tee /etc/default/rng-tools
 Plug in the device and restart rng-tools:
 
 ```console
-$ sudo atd
-
-$ sudo service rng-tools restart
+sudo atd
+sudo service rng-tools restart
 ```
 
 Test by emptying `/dev/random` - the light on the device will dim briefly:
@@ -405,13 +203,13 @@ An entropy pool value greater than 2000 is sufficient.
 Create a temporary directory which will be cleared on [reboot](https://en.wikipedia.org/wiki/Tmpfs) and set it as the GnuPG directory:
 
 ```console
-$ export GNUPGHOME=$(mktemp -d -t gnupg_$(date +%Y%m%d%H%M)_XXX)
+export GNUPGHOME=$(mktemp -d -t gnupg_$(date +%Y%m%d%H%M)_XXX)
 ```
 
 Otherwise, to preserve the working environment, set the GnuPG directory to your home folder:
 
 ```console
-$ export GNUPGHOME=~/gnupg-workspace
+export GNUPGHOME=~/gnupg-workspace
 ```
 
 ## Harden configuration
@@ -456,14 +254,14 @@ You'll be prompted to enter and verify a passphrase - keep it handy as you'll ne
 Generate a strong passphrase which could be written down in a secure place or memorized:
 
 ```console
-$ gpg --gen-random --armor 0 24
+gpg --gen-random --armor 0 24
 ydOmByxmDe63u7gqx2XI9eDgpvJwibNH
 ```
 
 Use upper case letters for improved readability if they are written down:
 
 ```console
-$ tr -dc '[:upper:]' < /dev/urandom | fold -w 20 | head -n1
+tr -dc '[:upper:]' < /dev/urandom | fold -w 20 | head -n1
 BSSYMUGGTJQVWZZWOPJG
 ```
 
@@ -566,7 +364,7 @@ uid                              Dr Duh <doc@duh.to>
 Export the key ID as a [variable](https://stackoverflow.com/questions/1158091/defining-a-variable-with-or-without-export/1158231#1158231) (`KEYID`) for use later:
 
 ```console
-$ export KEYID=0xFF3E7D88647EBCDB
+export KEYID=0xFF3E7D88647EBCDB
 ```
 
 # Sign with existing key
@@ -576,13 +374,13 @@ $ export KEYID=0xFF3E7D88647EBCDB
 Export your existing key to move it to the working keyring:
 
 ```console
-$ gpg --export-secret-keys --armor --output /tmp/new.sec
+gpg --export-secret-keys --armor --output /tmp/new.sec
 ```
 
 Then sign the new key:
 
 ```console
-$ gpg  --default-key $OLDKEY --sign-key $KEYID
+gpg  --default-key $OLDKEY --sign-key $KEYID
 ```
 
 # Sub-keys
@@ -956,117 +754,12 @@ Once keys are moved to YubiKey, they cannot be moved again! Create an **encrypte
 **Tip** The ext2 filesystem (without encryption) can be mounted on both Linux and OpenBSD. Consider using a FAT32/NTFS filesystem for MacOS/Windows compatibility instead.
 
 **Linux**
-
-Attach another external storage device and check its label:
-
-```console
-$ sudo dmesg | tail
-mmc0: new high speed SDHC card at address a001
-mmcblk0: mmc0:a001 SS16G 14.8 GiB
-
-$ sudo fdisk -l /dev/mmcblk0
-Disk /dev/mmcblk0: 14.9 GiB, 15931539456 bytes, 31116288 sectors
-Units: sectors of 1 * 512 = 512 bytes
-Sector size (logical/physical): 512 bytes / 512 bytes
-I/O size (minimum/optimal): 512 bytes / 512 bytes
-```
-
-Write it with random data to prepare for encryption:
-
-```console
-$ sudo dd if=/dev/urandom of=/dev/mmcblk0 bs=4M status=progress
-```
-
-Erase and create a new partition table:
-
-```console
-$ sudo fdisk /dev/mmcblk0
-
-Welcome to fdisk (util-linux 2.33.1).
-Changes will remain in memory only, until you decide to write them.
-Be careful before using the write command.
-
-Device does not contain a recognized partition table.
-Created a new DOS disklabel with disk identifier 0x3c1ad14a.
-
-Command (m for help): g
-Created a new GPT disklabel (GUID: 4E7495FD-85A3-3E48-97FC-2DD8D41516C3).
-
-Command (m for help): w
-The partition table has been altered.
-Calling ioctl() to re-read partition table.
-Syncing disks.
-
-```
-
-Create a new partition with a 25 Megabyte size:
-
-```console
-$ sudo fdisk /dev/mmcblk0
-
-Welcome to fdisk (util-linux 2.33.1).
-Changes will remain in memory only, until you decide to write them.
-Be careful before using the write command.
-
-Command (m for help): n
-Partition type
-   p   primary (0 primary, 0 extended, 4 free)
-   e   extended (container for logical partitions)
-Select (default p): p
-Partition number (1-4, default 1):
-First sector (2048-31116287, default 2048):
-Last sector, +/-sectors or +/-size{K,M,G,T,P} (2048-31116287, default 31116287): +25M
-
-Created a new partition 1 of type 'Linux' and of size 25 MiB.
-
-Command (m for help): w
-The partition table has been altered.
-Calling ioctl() to re-read partition table.
-Syncing disks.
-```
-
-Use [LUKS](https://askubuntu.com/questions/97196/how-secure-is-an-encrypted-luks-filesystem) to encrypt the new partition:
-
-```console
-$ sudo cryptsetup luksFormat /dev/mmcblk0p1
-
-WARNING!
-========
-This will overwrite data on /dev/mmcblk0p1 irrevocably.
-
-Are you sure? (Type uppercase yes): YES
-Enter passphrase for /dev/mmcblk0p1:
-Verify passphrase:
-```
-
-Mount the partition:
-
-```console
-$ sudo cryptsetup luksOpen /dev/mmcblk0p1 secret
-Enter passphrase for /dev/mmcblk0p1:
-```
-
-Create a filesystem:
-
-```console
-$ sudo mkfs.ext2 /dev/mapper/secret -L gpg-$(date +%F)
-Creating filesystem with 9216 1k blocks and 2304 inodes
-Superblock backups stored on blocks:
-        8193
-
-Allocating group tables: done
-Writing inode tables: done
-Writing superblocks and filesystem accounting information: done
-```
-
 Mount the filesystem and copy the temporary directory with the keyring:
 
 ```console
-$ sudo mkdir /mnt/encrypted-storage
-
-$ sudo mount /dev/mapper/secret /mnt/encrypted-storage
-
-$ sudo cp -avi $GNUPGHOME /mnt/encrypted-storage/
+sudo mkdir /mnt/encrypted-storage
+sudo mount /dev/mapper/secret /mnt/encrypted-storage
+sudo cp -avi $GNUPGHOME /mnt/encrypted-storage/
 ```
 
 **Optional** Backup the OneRNG package:
@@ -1077,98 +770,7 @@ $ sudo cp onerng_3.6-1_all.deb /mnt/encrypted-storage/
 
 Keep the backup mounted if you plan on setting up two or more keys as `keytocard` **will [delete](https://lists.gnupg.org/pipermail/gnupg-users/2016-July/056353.html) the local copy** on save.
 
-Unmount, close and disconnect the encrypted volume:
-
-```console
-$ sudo umount /mnt/encrypted-storage/
-
-$ sudo cryptsetup luksClose secret
-```
-
-
-**OpenBSD**
-
-Attach a USB disk and determine its label:
-
-```console
-$ dmesg | grep sd.\ at
-sd2 at scsibus5 targ 1 lun 0: <TS-RDF5, SD Transcend, TS37> SCSI4 0/direct removable serial.00000000000000000000
-```
-
-Print the existing partitions to make sure it's the right device:
-
-```console
-$ doas disklabel -h sd2
-```
-
-Initialize the disk by creating an `a` partition with FS type `RAID` and size of 25 Megabytes:
-
-```console
-$ doas fdisk -giy sd2
-Writing MBR at offset 0.
-Writing GPT.
-
-$ doas disklabel -E sd2
-Label editor (enter '?' for help at any prompt)
-sd2> a a
-offset: [64]
-size: [31101776] 25M
-FS type: [4.2BSD] RAID
-sd2*> w
-sd2> q
-No label changes
-```
-
-Encrypt with bioctl:
-
-```console
-$ doas bioctl -c C -l sd2a softraid0
-New passphrase:
-Re-type passphrase:
-softraid0: CRYPTO volume attached as sd3
-```
-
-Create an `i` partition on the new crypto volume and the filesystem:
-
-```console
-$ doas fdisk -giy sd3
-Writing MBR at offset 0.
-Writing GPT.
-
-$ doas disklabel -E sd3
-Label editor (enter '?' for help at any prompt)
-sd3> a i
-offset: [64]
-size: [16001]
-FS type: [4.2BSD]
-sd3*> w
-sd3> q
-No label changes.
-
-$ doas newfs sd3i
-```
-
-Mount the filesystem and copy the temporary directory with the keyring:
-
-```console
-$ doas mkdir /mnt/encrypted-storage
-
-$ doas mount /dev/sd3i /mnt/encrypted-storage
-
-$ doas cp -avi $GNUPGHOME /mnt/encrypted-storage
-```
-
-Keep the backup mounted if you plan on setting up two or more keys as `keytocard` **will [delete](https://lists.gnupg.org/pipermail/gnupg-users/2016-July/056353.html) the local copy** on save.
-
-Otherwise, unmount and disconnect the encrypted volume:
-
-```console
-$ doas umount /mnt/encrypted-storage
-
-$ doas bioctl -d sd3
-```
-
-See [OpenBSD FAQ#14](https://www.openbsd.org/faq/faq14.html#softraidCrypto) for more information.
+Unmount, close and disconnect the encrypted volume.
 
 # Export public keys
 
@@ -1593,12 +1195,16 @@ $ unset GNUPGHOME
 
 Download [drduh/config/gpg.conf](https://github.com/drduh/config/blob/master/gpg.conf):
 
+** Linux **
 ```console
-$ cd ~/.gnupg ; wget https://raw.githubusercontent.com/drduh/config/master/gpg.conf
-
-$ chmod 600 gpg.conf
+cd ~/.gnupg ; wget https://raw.githubusercontent.com/drduh/config/master/gpg.conf
+chmod 600 gpg.conf
 ```
+** Windows **
+```powershell
 
+```
+	
 Install the required packages and mount the non-encrypted volume created earlier:
 
 **Linux**
