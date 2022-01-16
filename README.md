@@ -1193,57 +1193,54 @@ $ unset GNUPGHOME
 
 # Using keys
 
-Download [drduh/config/gpg.conf](https://github.com/drduh/config/blob/master/gpg.conf):
+1. Install gpg
+	
+**Linux**
+
+```console
+sudo apt update && sudo apt install -y gnupg2 gnupg-agent gnupg-curl scdaemon pcscd
+```
+
+**Windows**
+
+```powershell
+winget install --id GnuPG.Gpg4win
+```
+
+2. Download [drduh/config/gpg.conf](https://github.com/drduh/config/blob/master/gpg.conf):
 
 ** Linux **
 ```console
 cd ~/.gnupg ; wget https://raw.githubusercontent.com/drduh/config/master/gpg.conf
 chmod 600 gpg.conf
 ```
+	
 ** Windows **
 ```powershell
-
+Invoke-WebRequest https://raw.githubusercontent.com/drduh/config/master/gpg.conf -OutFile $env:Appdata/gnupg/gpg.conf
 ```
 	
-Install the required packages and mount the non-encrypted volume created earlier:
+3. Import the public key
 
-**Linux**
-
+3.1 ... from file:
 ```console
-$ sudo apt update && sudo apt install -y gnupg2 gnupg-agent gnupg-curl scdaemon pcscd
-
-$ sudo mount /dev/mmcblk0p2 /mnt
+gpg --import /mnt/gpg-0x*.asc
 ```
 
-**OpenBSD**
+3.2 ... or download the public key from a keyserver:
 
 ```console
-$ doas pkg_add gnupg pcsc-tools
-
-$ doas mount /dev/sd2b /mnt
+gpg --recv $KEYID
 ```
 
-Import the public key file:
-
+3.3 or fetch via yubikey's set public key url (insert YubiKey first):
 ```console
-$ gpg --import /mnt/gpg-0x*.asc
-gpg: key 0xFF3E7D88647EBCDB: public key "Dr Duh <doc@duh.to>" imported
-gpg: Total number processed: 1
-gpg:               imported: 1
+$ gpg --card-edit
+
+gpg/card> fetch
 ```
-
-Or download the public key from a keyserver:
-
-```console
-$ gpg --recv $KEYID
-gpg: requesting key 0xFF3E7D88647EBCDB from hkps server hkps.pool.sks-keyservers.net
-[...]
-gpg: key 0xFF3E7D88647EBCDB: public key "Dr Duh <doc@duh.to>" imported
-gpg: Total number processed: 1
-gpg:               imported: 1
-```
-
-Edit the master key to assign it ultimate trust by selecting `trust` and `5`:
+	
+4. Edit the master key to assign it ultimate trust by selecting `trust` and `5`:
 
 ```console
 $ export KEYID=0xFF3E7D88647EBCDB
